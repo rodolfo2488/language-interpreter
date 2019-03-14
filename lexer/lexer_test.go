@@ -1,8 +1,11 @@
-package lexer
+package lexer_test
 
 import (
+	"monkey/lexer"
 	"monkey/token"
-	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 type ExpectedTestCaseToken struct {
@@ -10,9 +13,36 @@ type ExpectedTestCaseToken struct {
 	expectedLiteral string
 }
 
-func TestNextToken(t *testing.T) {
+func insert(original []token.Token, position int, value token.Token) []token.Token {
+	l := len(original)
+	target := original
+	if cap(original) == l {
+		target = make([]token.Token, l+1, l+10)
+		copy(target, original[:position])
+	} else {
+		target = append(target, token.Token{})
+	}
+	copy(target[position+1:], original[position:])
+	target[position] = value
+	return target
+}
 
-	input := `
+func LexerToTokenList(lexer lexer.Lexer) []token.Token {
+	list := []token.Token{}
+	currentValue := token.Token{}
+	currentValue = lexer.NextToken()
+	for currentValue.Type != token.EOF {
+		list = insert(list, len(list), currentValue)
+		currentValue = lexer.NextToken()
+	}
+
+	return list
+}
+
+var _ = Describe("Lexer", func() {
+
+	It("creates map for simple programs", func() {
+		input := `
 let five = 5;
 let ten = 10;
 
@@ -22,90 +52,74 @@ let add = fn(x, y) {
 
 let result = add(five, ten);`
 
-	test := []ExpectedTestCaseToken{
-		{token.LET, "let"},
-		{token.IDENT, "five"},
-		{token.ASSIGN, "="},
-		{token.INT, "5"},
-		{token.SEMICOLON, ";"},
-		{token.LET, "let"},
-		{token.IDENT, "ten"},
-		{token.ASSIGN, "="},
-		{token.INT, "10"},
-		{token.SEMICOLON, ";"},
-		{token.LET, "let"},
-		{token.IDENT, "add"},
-		{token.ASSIGN, "="},
-		{token.FUNCTION, "fn"},
-		{token.LPAREN, "("},
-		{token.IDENT, "x"},
-		{token.COMMA, ","},
-		{token.IDENT, "y"},
-		{token.RPAREN, ")"},
-		{token.LBRACE, "{"},
-		{token.IDENT, "x"},
-		{token.PLUS, "+"},
-		{token.IDENT, "y"},
-		{token.SEMICOLON, ";"},
-		{token.RBRACE, "}"},
-		{token.SEMICOLON, ";"},
-		{token.LET, "let"},
-		{token.IDENT, "result"},
-		{token.ASSIGN, "="},
-		{token.IDENT, "add"},
-		{token.LPAREN, "("},
-		{token.IDENT, "five"},
-		{token.COMMA, ","},
-		{token.IDENT, "ten"},
-		{token.RPAREN, ")"},
-		{token.SEMICOLON, ";"},
-		{token.EOF, ""},
-	}
-
-	assertTokenMap(t, test, input)
-}
-
-func TestDontCareSpacing(t *testing.T) {
-	input := `    let        five        =            5;       `
-
-	tests := []ExpectedTestCaseToken{
-		{token.LET, "let"},
-		{token.IDENT, "five"},
-		{token.ASSIGN, "="},
-		{token.INT, "5"},
-		{token.SEMICOLON, ";"},
-		{token.EOF, ""},
-	}
-
-	assertTokenMap(t, tests, input)
-}
-
-func TestIllegalChars(t *testing.T) {
-
-	input := `let yu^2= 5;`
-
-	tests := []ExpectedTestCaseToken{
-		{token.LET, "let"},
-		{token.IDENT, "yu"},
-		{token.ILLEGAL, "^"},
-	}
-
-	assertTokenMap(t, tests, input)
-}
-func assertTokenMap(t *testing.T, expectedOutput []ExpectedTestCaseToken, input string) {
-	l := New(input)
-
-	for i, tt := range expectedOutput {
-		tok := l.NextToken()
-
-		if tok.Type != tt.expectedType {
-			t.Fatalf("test[%d] - tokentype wrong. expected=%q, got=%q",
-				i, tt.expectedType, tok.Type)
+		test := []ExpectedTestCaseToken{
+			{token.LET, "let"},
+			{token.IDENT, "five"},
+			{token.ASSIGN, "="},
+			{token.INT, "5"},
+			{token.SEMICOLON, ";"},
+			{token.LET, "let"},
+			{token.IDENT, "ten"},
+			{token.ASSIGN, "="},
+			{token.INT, "10"},
+			{token.SEMICOLON, ";"},
+			{token.LET, "let"},
+			{token.IDENT, "add"},
+			{token.ASSIGN, "="},
+			{token.FUNCTION, "fn"},
+			{token.LPAREN, "("},
+			{token.IDENT, "x"},
+			{token.COMMA, ","},
+			{token.IDENT, "y"},
+			{token.RPAREN, ")"},
+			{token.LBRACE, "{"},
+			{token.IDENT, "x"},
+			{token.PLUS, "+"},
+			{token.IDENT, "y"},
+			{token.SEMICOLON, ";"},
+			{token.RBRACE, "}"},
+			{token.SEMICOLON, ";"},
+			{token.LET, "let"},
+			{token.IDENT, "result"},
+			{token.ASSIGN, "="},
+			{token.IDENT, "add"},
+			{token.LPAREN, "("},
+			{token.IDENT, "five"},
+			{token.COMMA, ","},
+			{token.IDENT, "ten"},
+			{token.RPAREN, ")"},
+			{token.SEMICOLON, ";"},
+			{token.EOF, ""},
 		}
 
-		if tok.Literal != tt.expectedLiteral {
-			t.Fatalf("test[%d] - tokenliteral wrong. expecte=%q, got=%q",
-				i, tt.expectedLiteral, tok.Literal)
+		l := lexer.New(input)
+
+		for _, tt := range test {
+			tok := l.NextToken()
+
+			Expect(tok.Type).To(Equal(tt.expectedType))
+			Expect(tok.Literal).To(Equal(tt.expectedLiteral))
 		}
-	}
-}
+	})
+
+	Context("when there is an illegal caracter in the program", func() {
+		var (
+			subject *lexer.Lexer
+		)
+
+		BeforeEach(func() {
+			input := `let yu^2=5;`
+
+			subject = lexer.New(input)
+		})
+
+		It("parses the illegal char", func() {
+			expectedIllegalToken := token.Token{Type: token.ILLEGAL, Literal: "^"}
+			Expect(LexerToTokenList(*subject)).To(ContainElement(expectedIllegalToken))
+		})
+
+		It("stop the parse at the illegal char", func() {
+			Expect(LexerToTokenList(*subject)).Should(HaveLen(3))
+		})
+	})
+})

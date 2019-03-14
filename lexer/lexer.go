@@ -71,7 +71,7 @@ func (l *Lexer) NextToken() token.Token {
 			tok.Type = token.INT
 		} else {
 			tok = newToken(token.ILLEGAL, l.ch)
-			l.position = len(l.input)
+			l.readPosition = len(l.input)
 			l.readChar()
 		}
 	}
@@ -111,4 +111,8 @@ func (l *Lexer) skipWhitespace() {
 	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
 		l.readChar()
 	}
+}
+
+func (l *Lexer) Len() int {
+	return len(l.input)
 }
